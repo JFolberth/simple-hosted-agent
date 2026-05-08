@@ -1,4 +1,4 @@
-tine{
+{
   "name": "simple-hosted-agent",
   "image": "mcr.microsoft.com/devcontainers/python:3.12",
   "features": {
@@ -14,7 +14,7 @@ tine{
       "tflint": "latest"
     }
   },
-  "postCreateCommand": "pip install -r src/agent-framework-agent-basic-invocations/requirements.txt && az bicep install",
+  "postCreateCommand": "pip install -r src/agent-framework-agent-basic-invocations/requirements.txt && az bicep install && curl -fsSL https://aka.ms/install-azd.sh | bash && azd extension install azure.ai.agents",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -22,8 +22,12 @@ tine{
         "ms-azuretools.vscode-docker",
         "ms-vscode.azurecli",
         "ms-python.python",
-        "hashicorp.terraform"
-      ]
+        "hashicorp.terraform",
+        "ms-azuretools.azure-dev"
+      ],
+      "settings": {
+        "python.terminal.useEnvFile": true
+      }
     }
   }
 }

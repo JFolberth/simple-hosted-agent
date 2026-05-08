@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: simple-hosted-agent
+requiredVersions:
+    extensions:
+        azure.ai.agents: '>=0.1.0-preview'
+
+services:
+    agent-framework-agent-basic-invocations:
+        project: ../src/agent-framework-agent-basic-invocations
+        host: azure.ai.agent
+        language: docker
+        docker:
+            platform: linux/amd64
+            remoteBuild: true
+        config:
+            container:
+                resources:
+                    cpu: "0.25"
+                    memory: 0.5Gi
+            deployments:
+                - model:
+                    format: OpenAI
+                    name: gpt-4.1-mini
+                    version: "2025-04-14"
+                  name: gpt-4.1-mini
+                  sku:
+                    capacity: 10
+                    name: Standard
+            startupCommand: python main.py
+
+infra:
+    provider: terraform
+    path: ../infra/terraform
+    module: azd

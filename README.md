@@ -1,6 +1,6 @@
 # Simple Hosted Agent
 
-A minimal, production-ready reference for deploying a Python AI agent to [Microsoft Foundry Agent Service](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents) using the **Invocations protocol**. Infrastructure is available in two flavors — **Bicep** and **Terraform (azapi)** — and deployed with a single shell script. No Azure Developer CLI (`azd`) required.
+A minimal, production-ready reference for deploying a Python AI agent to [Microsoft Foundry Agent Service](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents) using the **Invocations protocol**. Infrastructure is available in two flavors — **Bicep** and **Terraform (azapi)** — and deployed either with a single shell script or with the **Azure Developer CLI (`azd`)**.
 
 ---
 
@@ -34,92 +34,85 @@ See the official Microsoft documentation: [What are hosted agents?](https://lear
 
 ### Infrastructure
 
-Six Bicep modules are deployed to a single resource group:
+Six resources are deployed to a single resource group:
 
-| Module | Resource | Why it's here | Hosted-agent-specific? |
-|---|---|---|---|
-| `foundry.bicep` | `Microsoft.CognitiveServices/accounts` (kind: `AIServices`) | AI Services account + model deployments + **account-level capability host** | Capability host only — the account itself is used by all Foundry project types |
-| `foundry-project.bicep` | `Microsoft.CognitiveServices/accounts/projects` | Foundry project + App Insights connection + **Azure AI User** role for project MI on AI account | Project and App Insights connection are general purpose; **Azure AI User** role is hosted-agent-specific — it grants `Microsoft.CognitiveServices/*` data actions to the container's managed identity so it can call the model endpoint at runtime |
-| `acr.bicep` | `Microsoft.ContainerRegistry/registries` | Container image registry + AcrPull role for project MI + ACR connection to the project | The registry itself is general purpose, but the **ACR connection registered on the Foundry project** is hosted-agent-specific — it is what tells Foundry Agent Service which registry to pull the container image from at runtime |
-| `storage.bicep` | `Microsoft.Storage/storageAccounts` | Blob storage + Storage Blob Data Contributor for project MI + storage connection to the project | **Yes** — the account-level capability host discovers this connection to persist session thread state across the 15-minute idle timeout |
-| `loganalytics.bicep` | `Microsoft.OperationalInsights/workspaces` | Log retention backend for Application Insights | No |
-| `applicationinsights.bicep` | `Microsoft.Insights/components` | Distributed traces, metrics, and exceptions | No — prompt-based agents and evaluations also use it |
+| Bicep | Terraform | Resource | Why it's here | Hosted-agent-specific? |
+|---|---|---|---|---|
+| `foundry.bicep` | `modules/foundry/` | `Microsoft.CognitiveServices/accounts` (kind: `AIServices`) | AI Services account + model deployments + **account-level capability host** | Capability host only — the account itself is used by all Foundry project types |
+| `foundry-project.bicep` | `modules/foundry_project/` | `Microsoft.CognitiveServices/accounts/projects` | Foundry project + App Insights connection + **Azure AI User** role for project MI on AI account | Project and App Insights connection are general purpose; **Azure AI User** role is hosted-agent-specific — it grants `Microsoft.CognitiveServices/*` data actions to the container's managed identity so it can call the model endpoint at runtime |
+| `acr.bicep` | `modules/acr/` | `Microsoft.ContainerRegistry/registries` | Container image registry + AcrPull role for project MI + ACR connection to the project | The registry itself is general purpose, but the **ACR connection registered on the Foundry project** is hosted-agent-specific — it tells Foundry Agent Service which registry to pull the container image from at runtime |
+| `storage.bicep` | `modules/storage/` | `Microsoft.Storage/storageAccounts` | Blob storage + Storage Blob Data Contributor for project MI + storage connection to the project | **Yes** — the account-level capability host discovers this connection to persist session thread state across the 15-minute idle timeout |
+| `loganalytics.bicep` | `modules/loganalytics/` | `Microsoft.OperationalInsights/workspaces` | Log retention backend for Application Insights | No |
+| `applicationinsights.bicep` | `modules/applicationinsights/` | `Microsoft.Insights/components` | Distributed traces, metrics, and exceptions | No — prompt-based agents and evaluations also use it |
 
 #### What makes this different from a standard Foundry project at the IaC level
 
 A standard Foundry project (used for prompt-based agents, evaluations, or model calls) needs only the AI Services account and a project resource. Hosted agents require three additional things, all declared in this template:
 
-1. **`capabilityHosts` on the account** (`foundry.bicep`) — registers the account with Foundry Agent Service and provisions the micro VM runtime layer. Without this, the account can serve model calls but cannot run hosted agents.
+1. **`capabilityHosts` on the account** — registers the account with Foundry Agent Service and provisions the micro VM runtime layer. Without this, the account can serve model calls but cannot run hosted agents.
 
-2. **An ACR connection on the project** (`acr.bicep`) — tells the micro VM runtime which container registry to pull images from. The registry itself is general purpose, but registering it as a connection on the Foundry project is specific to hosted agents. `authType: ManagedIdentity` means no stored credentials; the project managed identity (granted AcrPull on the registry) handles authentication.
+2. **An ACR connection on the project** — tells the micro VM runtime which container registry to pull images from. The registry itself is general purpose, but registering it as a connection on the Foundry project is specific to hosted agents. No stored credentials — the project managed identity (granted AcrPull on the registry) handles authentication.
 
-3. **A storage connection on the project** (`storage.bicep`) — the account-level capability host discovers this connection automatically and uses it to persist agent session thread state (conversation history, in-flight tool calls) so sessions survive the idle timeout. `authType: AAD` uses the project managed identity (granted Storage Blob Data Contributor on the storage account).
+3. **A storage connection on the project** — the account-level capability host discovers this connection automatically and uses it to persist agent session thread state (conversation history, in-flight tool calls) so sessions survive the idle timeout. The project managed identity (granted Storage Blob Data Contributor) handles authentication.
 
-4. **Azure AI User on the account for the project MI** (`foundry-project.bicep`) — the container running inside the hosted agent authenticates as the project managed identity. That identity must have `Microsoft.CognitiveServices/*` data actions on the AI account to call the model endpoint. Without this role the container receives a 401 `PermissionDenied` on its first model call.
+4. **Azure AI User on the account for the project MI** — the container running inside the hosted agent authenticates as the project managed identity. That identity must have `Microsoft.CognitiveServices/*` data actions on the AI account to call the model endpoint. Without this role the container receives a 401 `PermissionDenied` on its first model call.
 
 See [Capability hosts](https://learn.microsoft.com/azure/foundry/agents/concepts/capability-hosts) for the full reference.
 
 ---
 
-## Repository Structure
+## Getting Started
 
-```
-.
-├── deployment/
-│   ├── deploy-bicep.sh                # Full deploy script (infra + image + agent) — Bicep
-│   └── deploy-terraform.sh            # Full deploy script (infra + image + agent) — Terraform
-├── infra/
-│   ├── bicep/
-│   │   ├── main.bicep                 # Subscription-scoped orchestrator
-│   │   ├── main.bicepparam            # Parameter values — edit before deploying
-│   │   ├── abbreviations.json         # Resource naming prefixes
-│   │   └── modules/
-│   │       ├── foundry.bicep          # AI Services account + model deployments + capability host
-│   │       ├── foundry-project.bicep  # Foundry project + App Insights connection
-│   │       ├── foundry-project-connection.bicep  # Reusable connection resource
-│   │       ├── acr.bicep              # Container Registry + AcrPull role + ACR connection
-│   │       ├── storage.bicep          # Storage account + Blob Contributor role + storage connection
-│   │       ├── loganalytics.bicep     # Log Analytics workspace
-│   │       └── applicationinsights.bicep  # Application Insights component
-│   └── terraform/                     # Terraform (azapi) alternative — mirrors Bicep modules
-│       ├── main.tf                    # Root orchestrator
-│       ├── providers.tf               # Azure/azapi + hashicorp/random providers
-│       ├── variables.tf               # Input variables
-│       ├── outputs.tf                 # Output values
-│       ├── terraform.tfvars           # Environment-specific values — edit before deploying
-│       └── modules/
-│           ├── foundry/               # AI Services account + deployments + capability host
-│           ├── foundry_project/       # Foundry project + App Insights + roles
-│           ├── acr/                   # Container Registry + AcrPull + ACR connection
-│           ├── storage/               # Storage account + Blob Contributor + storage connection
-│           ├── loganalytics/          # Log Analytics workspace
-│           ├── applicationinsights/   # Application Insights component
-│           └── foundry_project_connection/  # Reusable connection resource
-└── src/
-    └── agent-framework-agent-basic-invocations/
-        ├── main.py                    # Agent implementation
-        ├── agent.yaml                 # Foundry agent descriptor
-        ├── Dockerfile                 # Container image definition
-        ├── requirements.txt           # Python dependencies
-        └── test-payload.txt           # Sample request payload for manual testing
+All paths require an **Azure subscription** and the model available in your chosen region. For a list of supported regions, see the [availability table](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents#limits-pricing-and-availability-preview).
+
+### Dev Container (recommended)
+
+Install [VS Code](https://code.visualstudio.com/) and [Docker Desktop](https://www.docker.com/products/docker-desktop/). Everything else — Azure CLI, azd, Bicep, Terraform, tflint, the `azure.ai.agents` azd extension, and Python dependencies — is installed automatically when the container builds.
+
+1. Clone the repository and open it in VS Code.
+2. When prompted, click **Reopen in Container** (or run **Dev Containers: Reopen in Container**).
+3. Authenticate with Azure:
+   ```bash
+   az login
+   ```
+
+### Local — azd
+
+| Tool | Install |
+|---|---|
+| [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) | `brew install azure-cli` / [Windows installer](https://aka.ms/installazurecliwindows) |
+| [Azure Developer CLI](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) | `brew tap azure/azd && brew install azd` / [installer](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) |
+
+After installing azd, add the agent extension:
+```bash
+azd extension install azure.ai.agents
 ```
 
----
+No Bicep CLI or Terraform install needed — azd uses ACR remote build for the image and handles infra through the provider you select.
 
-## Prerequisites
+### Local — Shell scripts (Bicep)
 
-Regardless of whether you use the dev container or a local setup, you need:
+| Tool | Install |
+|---|---|
+| [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) | `brew install azure-cli` / [Windows installer](https://aka.ms/installazurecliwindows) |
+| [Bicep CLI](https://learn.microsoft.com/azure/azure-resource-manager/bicep/install) | `az bicep install` |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Platform installer |
 
-- An **Azure subscription**
-- The model you configure in `infra/bicep/main.bicepparam` available in your chosen region
+### Local — Shell scripts (Terraform)
 
-### Required Azure permissions
+| Tool | Install |
+|---|---|
+| [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) | `brew install azure-cli` / [Windows installer](https://aka.ms/installazurecliwindows) |
+| [Terraform](https://developer.hashicorp.com/terraform/install) | ≥ 1.9 — `brew install hashicorp/tap/terraform` / [installer](https://developer.hashicorp.com/terraform/install) |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Platform installer |
 
-`deployment/deploy-bicep.sh` performs these operations, each requiring different permissions on the identity running the script:
+### Required Azure permissions (shell scripts)
+
+The deploy scripts perform these operations. `azd` handles all of this automatically via the `azure.ai.agents` extension.
 
 | Operation | What it does | Required role | Scope |
 |---|---|---|---|
-| `az deployment sub create` | Creates the resource group and all Azure resources | **Contributor** + **Role Based Access Control Administrator** | Subscription |
+| `az deployment sub create` / `terraform apply` | Creates the resource group and all Azure resources | **Contributor** + **Role Based Access Control Administrator** | Subscription |
 | `az role assignment create` | Grants Azure AI Project Manager at project scope | **Role Based Access Control Administrator** | Foundry project |
 | `docker push` (via `az acr login`) | Pushes the container image to ACR | **AcrPush** or **Container Registry Repository Writer** | ACR resource |
 | `az rest POST .../agents/{name}/versions` | Creates the hosted agent version via the Foundry data plane | **Azure AI Project Manager** | Foundry project |
@@ -130,46 +123,9 @@ Regardless of whether you use the dev container or a local setup, you need:
 > > *"Azure AI Project Manager at the project scope is the recommended role assignment for agent creators, as that role includes both the required data plane permissions and the ability to assign the Azure AI User role."*
 > > — [Hosted agent permissions reference — Agent creation](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agent-permissions#agent-creation)
 >
-> `deployment/deploy-bicep.sh` handles this automatically (Step 3) with an idempotent `az role assignment create` followed by a 30-second propagation wait, so you don't need to pre-configure it manually.
+> The deploy scripts handle this automatically (Step 3) with an idempotent `az role assignment create` followed by a 30-second propagation wait.
 
 If your identity has **Owner** at subscription scope it satisfies the ARM operations. The project-scope data plane assignment is always made explicitly by the script regardless.
-
-For a list of regions where hosted agents are available, see the [availability table](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents#limits-pricing-and-availability-preview).
-
----
-
-## Getting Started
-
-### Option A — Dev Container (recommended)
-
-The repository includes a [dev container](.devcontainer/devcontainer.json) that installs all tooling automatically. You need [VS Code](https://code.visualstudio.com/) and [Docker Desktop](https://www.docker.com/products/docker-desktop/) on your machine.
-
-1. Clone the repository and open it in VS Code.
-2. When prompted, click **Reopen in Container** (or run the **Dev Containers: Reopen in Container** command).
-3. Wait for the container to build — it installs Azure CLI, Bicep, Terraform, tflint, and Python dependencies automatically.
-4. Inside the container, authenticate with Azure:
-   ```bash
-   az login
-   ```
-
-### Option B — Local Setup
-
-Install the following tools on your machine:
-
-| Tool | Version | Install |
-|---|---|---|
-| [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) | Latest | `brew install azure-cli` / [Windows installer](https://aka.ms/installazurecliwindows) |
-| [Bicep CLI](https://learn.microsoft.com/azure/azure-resource-manager/bicep/install) | Latest | `az bicep install` |
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Latest | Platform installer |
-| Python | 3.12 | [python.org](https://www.python.org/downloads/) |
-| [Terraform](https://developer.hashicorp.com/terraform/install) | ≥ 1.9 | `brew install hashicorp/tap/terraform` / [installer](https://developer.hashicorp.com/terraform/install) |
-
-> Terraform is only required when using `deployment/deploy-terraform.sh`.
-
-Then authenticate:
-```bash
-az login
-```
 
 ---
 
@@ -245,6 +201,52 @@ State is stored locally in `infra/terraform/terraform.tfstate`. This is suitable
 ---
 
 ## Deploying
+
+### Option 1 — azd (recommended)
+
+`azd` handles infrastructure provisioning, image build (via ACR remote build), and agent deployment in a single `azd up` command. The `azure.ai.agents` azd extension manages the full agent lifecycle including the per-version `instance_identity` Azure AI User role assignment.
+
+**Prerequisites:** `azd` CLI installed + `azure.ai.agents` extension (both installed automatically in the dev container).
+
+**First-time setup:**
+
+```bash
+# 1. Choose Bicep or Terraform — creates deployment/azure.yaml
+./deployment/azd-select.sh
+
+# 2. Move into the deployment directory (azd reads azure.yaml from CWD)
+cd deployment
+
+# 3. Create a new azd environment
+azd env new <env-name>
+
+# 4. Set required environment variables
+azd env set AZURE_LOCATION swedencentral
+
+# Bicep only:
+azd env set AZURE_AI_DEPLOYMENTS_LOCATION swedencentral
+
+# Terraform only (maps to TF_VAR_ai_deployments_location):
+azd env set AI_DEPLOYMENTS_LOCATION swedencentral
+
+# 5. Provision infrastructure and deploy the agent
+azd up
+```
+
+**Subsequent code-only changes:**
+
+```bash
+cd deployment
+azd deploy
+```
+
+> **Terraform note:** azd injects `TF_VAR_environment_name`, `TF_VAR_location`, and `TF_VAR_resource_group_name` automatically from standard azd environment variables. Set `AI_DEPLOYMENTS_LOCATION` to control `TF_VAR_ai_deployments_location`. The `infra/terraform/terraform.tfvars` file is still used as a fallback for any variables not set by azd.
+
+> **Model deployments:** The model deployment array is hardcoded in `deployment/infra-azd/main.bicepparam` (Bicep) or `infra/terraform/terraform.tfvars` (Terraform). Edit those files to change the model or capacity — there is no azd env var for this.
+
+---
+
+### Option 2 — Shell scripts
 
 ### Bicep
 
@@ -365,7 +367,14 @@ You will need an existing Foundry project and model deployment. The `FOUNDRY_PRO
 
 ## Cleaning Up
 
-To delete all provisioned Azure resources:
+**If deployed with azd:**
+
+```bash
+cd deployment
+azd down
+```
+
+**If deployed with the shell scripts:**
 
 ```bash
 az group delete --name rg-simple-hosted-agent-dev --yes

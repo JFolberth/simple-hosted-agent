@@ -9,7 +9,9 @@ locals {
   }
 }
 
-# ── Resource Group ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# Resource Group
+# ─────────────────────────────────────────────────────────────────────────────
 
 resource "azapi_resource" "resource_group" {
   type      = "Microsoft.Resources/resourceGroups@2022-09-01"
@@ -20,10 +22,12 @@ resource "azapi_resource" "resource_group" {
   body      = {}
 }
 
-# ── Resource token ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# Resource Token
 # Deterministic per subscription × resource group × AI deployments location,
 # mirroring Bicep's uniqueString(subscription().id, resourceGroup().id, location).
 # Keepers ensure the token is stable as long as these three values don't change.
+# ─────────────────────────────────────────────────────────────────────────────
 
 resource "random_id" "resource_token" {
   byte_length = 8
@@ -41,6 +45,8 @@ locals {
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Log Analytics Workspace
+# Provides structured log storage for Application Insights. All telemetry from
+# the AI project and hosted agents is retained here for querying and alerting.
 # ─────────────────────────────────────────────────────────────────────────────
 
 module "log_analytics" {
@@ -54,6 +60,9 @@ module "log_analytics" {
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Application Insights
+# Captures distributed traces, metrics, and exceptions from the hosted agent.
+# Connected to the Log Analytics workspace above. The project MI is granted
+# Log Analytics Reader so evaluations can run against agent traces.
 # ─────────────────────────────────────────────────────────────────────────────
 
 module "application_insights" {
@@ -67,7 +76,10 @@ module "application_insights" {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Azure AI Foundry (AI Services Account + model deployments + capability host)
+# Azure AI Foundry (AI Services Account)
+# Provisions the Azure AI Services account and all model deployments. Also
+# enables the account-level capability host when hosted agents are active,
+# which provides the shared agent runtime infrastructure for all projects.
 # ─────────────────────────────────────────────────────────────────────────────
 
 module "foundry" {
@@ -82,6 +94,9 @@ module "foundry" {
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AI Foundry Project
+# Creates the Foundry project under the AI Services account and links it to
+# Application Insights for trace collection. A single account can host
+# multiple projects; this module manages exactly one.
 # ─────────────────────────────────────────────────────────────────────────────
 
 module "foundry_project" {
@@ -100,6 +115,9 @@ module "foundry_project" {
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Azure Container Registry
+# Stores Docker images built for the hosted agent. The Foundry project
+# managed identity is granted AcrPull so the agent runtime can pull images.
+# Registers the registry as a connection in the Foundry project.
 # ─────────────────────────────────────────────────────────────────────────────
 
 module "acr" {
@@ -118,6 +136,11 @@ module "acr" {
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Storage Account
+# Provides durable storage for agent thread state. Grants the Foundry project
+# managed identity Storage Blob Data Contributor and registers the account as
+# a storage connection on the Foundry project. The account-level capability
+# host (foundry module) resolves this connection automatically — no project-level
+# capability host resource is required.
 # ─────────────────────────────────────────────────────────────────────────────
 
 module "storage" {

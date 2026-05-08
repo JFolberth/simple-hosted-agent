@@ -35,16 +35,26 @@ No `azd`, no `az cognitiveservices` extension. Prerequisites: `az login`, Docker
 
 ## Key Conventions
 
-### RBAC — all three roles are required
-The project managed identity needs **all three** of these or the agent fails at runtime:
+### RBAC — roles required at infrastructure time
+The project managed identity needs **these two** roles provisioned by IaC:
 
 | Role | GUID | Scope | Grants |
-|---|---|---|---|
+|---|---|---|-|
 | AcrPull | `7f951dda` | Container Registry | Image pull at container start |
 | Storage Blob Data Contributor | `ba92f5b4` | Storage Account | Session thread state persistence |
-| Azure AI User | `53ca6127` | AI Account | `Microsoft.CognitiveServices/*` data actions — model calls from inside the container |
 
-Missing Azure AI User → container starts but every model call gets `401 PermissionDenied`.
+### RBAC — role granted at deploy time (post-agent-version creation)
+Foundry Agent Service creates a **per-version `instance_identity`** (a dedicated managed identity) for each hosted agent version. The container authenticates as this identity — **not** the project MI — when calling the model endpoint. This identity is only known after the agent version is created, so it cannot be pre-provisioned by IaC.
+
+| Role | GUID | Scope | When |
+|---|---|---|---|
+| Azure AI User | `53ca6127` | AI Account | Step 7 of deploy script, after `az rest POST .../versions` |
+
+The deploy scripts (`deploy.sh`, `deploy-terraform.sh`) parse `instance_identity.principal_id` from the version creation response and grant this role automatically (Step 7).
+
+Missing Azure AI User on the instance identity → container starts but every model call gets `401 PermissionDenied`.
+
+Note: the project MI also receives Azure AI User in `foundry-project.bicep` / the Terraform `foundry_project` module. This covers the project MI but **does not cover the instance identity**.
 
 ### Bicep scope
 `main.bicep` is `targetScope = 'subscription'`; all modules are `targetScope = 'resourceGroup'`. Modules are called with `scope: rg`. Role assignment GUIDs are always deterministic: `guid(resourceGroup().id, <discriminator>, <roleGuid>)`.

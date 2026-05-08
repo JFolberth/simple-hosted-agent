@@ -6,9 +6,9 @@
 
 environment_name        = "simple-hosted-agent-tf"
 resource_group_name     = "rg-simple-hosted-agent-tf"
-location                = "eastus"
-ai_deployments_location = "eastus"
-ai_foundry_project_name = "ai-project-tf"
+location                = "swedencentral"
+ai_deployments_location = "swedencentral"
+ai_foundry_project_name = "ai-project-tf2"
 
 deployments = [
   {

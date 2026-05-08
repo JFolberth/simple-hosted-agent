@@ -1,0 +1,22 @@
+{
+  "name": "simple-hosted-agent",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/azure-cli:1": {
+      "version": "latest",
+      "extensions": "cognitiveservices"
+    },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "postCreateCommand": "pip install -r src/agent-framework-agent-basic-invocations/requirements.txt && az bicep install",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-bicep",
+        "ms-azuretools.vscode-docker",
+        "ms-vscode.azurecli",
+        "ms-python.python"
+      ]
+    }
+  }
+}

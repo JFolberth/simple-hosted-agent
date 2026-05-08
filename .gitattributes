@@ -1,0 +1,27 @@
+# Let Git normalise line endings to LF in the repo and check out as
+# platform-native (CRLF on Windows, LF on Mac/Linux).
+* text=auto
+
+# Shell scripts and Dockerfiles must always be LF — CRLF breaks the shebang
+# and set -euo pipefail on execution regardless of platform.
+*.sh text eol=lf
+Dockerfile text eol=lf
+
+# Bicep / JSON / YAML / Python / Markdown — normalise in repo, platform-native checkout
+*.bicep text
+*.bicepparam text
+*.json text
+*.yaml text
+*.yml text
+*.py text
+*.md text
+*.txt text
+
+# Binary files — no line ending conversion
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.tar.gz binary

@@ -1,0 +1,45 @@
+# Azure Developer CLI
+.azure
+
+# Bicep compiled output
+*.json.bicep
+infra/main.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# VS Code
+.vscode/settings.json
+.vscode/launch.json
+
+# Docker
+.dockerignore
+
+# Environment / secrets
+.env
+.env.*
+*.local

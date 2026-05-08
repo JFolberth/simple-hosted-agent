@@ -10,7 +10,7 @@ For deployment instructions, prerequisites, and infrastructure details see the [
 
 ### Model Integration
 
-The agent uses `FoundryChatClient` from the Agent Framework to call the project endpoint and model deployment. When a request arrives, the handler looks up (or creates) a session by `session_id`, runs the agent with the user's `input`, and returns the reply. Both streaming (SSE) and non-streaming (JSON) response modes are supported.
+The agent uses `FoundryChatClient` from the [`agent-framework-foundry-hosting`](https://pypi.org/project/agent-framework-foundry-hosting/) package to call the project endpoint and model deployment. When a request arrives, the handler looks up (or creates) a session by `session_id`, runs the agent with the user's `input`, and returns the reply. Both streaming (SSE) and non-streaming (JSON) response modes are supported.
 
 ### Agent Hosting
 

@@ -43,3 +43,11 @@ $RECYCLE.BIN/
 .env
 .env.*
 *.local
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars.backup
+crash.log
+crash.*.log

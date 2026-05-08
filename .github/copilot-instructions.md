@@ -25,6 +25,7 @@ A minimal reference for deploying a Python AI agent to Azure AI Foundry Hosted A
 | `deployment/azd-select.sh` | Interactive prompt — copies `azure-bicep.yaml` or `azure-terraform.yaml` to `deployment/azure.yaml` |
 | `deployment/azure-bicep.yaml` | azd config for Bicep (`infra.provider: bicep`, points to `deployment/infra-azd/`) |
 | `deployment/azure-terraform.yaml` | azd config for Terraform (`infra.provider: terraform`, points to `infra/terraform/`) |
+| `deployment/scripts/grant-project-manager.sh` | azd `postprovision` hook — grants Azure AI Project Manager to the deploying principal at project scope (equivalent to Step 3 of the deploy scripts) |
 | `deployment/infra-azd/main.bicepparam` | azd-compatible Bicep parameter shim — uses `readEnvironmentVariable()` for azd env var injection |
 
 The **Foundry data plane** (`POST {projectEndpoint}/agents/{name}/versions?api-version=2025-11-15-preview`) is used to create agent versions — NOT `az cognitiveservices agent create`, which calls a broken `containers/default:start` operation.
@@ -55,8 +56,10 @@ Prerequisites: `az login`, Docker daemon running. Terraform also requires `terra
 
 # 2. Run from deployment/ — azd reads azure.yaml from CWD
 cd deployment
+azd auth login                                        # required — azd auth is separate from az login
 azd env new <env-name>
 azd env set AZURE_LOCATION <region>
+azd env set AZURE_TENANT_ID "$(az account show --query tenantId -o tsv)"  # required by azure.ai.agents extension
 azd env set AZURE_AI_DEPLOYMENTS_LOCATION <region>   # Bicep only
 azd env set AI_DEPLOYMENTS_LOCATION <region>          # Terraform only → TF_VAR_ai_deployments_location
 azd up
@@ -65,7 +68,9 @@ azd up
 azd deploy
 ```
 
-Prerequisites: `az login`, `azd` CLI, `azure.ai.agents` extension (`azd extension install azure.ai.agents`). The dev container installs all of these automatically. The `azure.ai.agents` extension handles the full agent lifecycle including the per-version `instance_identity` Azure AI User role assignment (equivalent to Step 7 of the deploy scripts).
+Prerequisites: `az login`, `azd auth login`, `azd` CLI, `azure.ai.agents` extension (`azd extension install azure.ai.agents`). The dev container installs all of these automatically. `azd auth login` is required separately from `az login` — without it azd cannot populate `AZURE_TENANT_ID` into hook and extension processes, causing the `azure.ai.agents` extension to fail with `AZURE_TENANT_ID is not set in the environment`. Setting `AZURE_TENANT_ID` explicitly via `azd env set AZURE_TENANT_ID "$(az account show --query tenantId -o tsv)"` is the reliable workaround.
+
+The `postprovision` hook (`deployment/scripts/grant-project-manager.sh`) grants **Azure AI Project Manager** to the deploying principal at project scope after infrastructure is provisioned — this is equivalent to Step 3 of the deploy scripts and is required before the `azure.ai.agents` extension can call `POST .../agents/*/versions`. The `azure.ai.agents` extension then handles the per-version `instance_identity` Azure AI User role assignment (equivalent to Step 7).
 
 ---
 

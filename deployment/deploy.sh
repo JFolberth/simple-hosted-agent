@@ -6,10 +6,14 @@
 #   - Docker daemon running locally
 #
 # Usage:
-#   First deploy:   ./deploy.sh
-#   Code change:    ./deploy.sh --skip-infra
+#   First deploy:   ./deployment/deploy.sh
+#   Code change:    ./deployment/deploy.sh --skip-infra
 
 set -euo pipefail
+
+# Resolve the repo root regardless of the caller's working directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Configuration — edit these to match your environment
@@ -17,7 +21,7 @@ set -euo pipefail
 ENVIRONMENT_NAME="simple-hosted-agent3"
 LOCATION="eastus"
 AGENT_NAME="agent-framework-agent-basic-invocations3"
-AGENT_SOURCE_DIR="./src/agent-framework-agent-basic-invocations"
+AGENT_SOURCE_DIR="${REPO_ROOT}/src/agent-framework-agent-basic-invocations"
 IMAGE_NAME="agent-framework-agent-basic-invocations"
 DEPLOYMENT_NAME="deploy-${ENVIRONMENT_NAME}"
 
@@ -40,8 +44,8 @@ if [ "$SKIP_INFRA" = false ]; then
   az deployment sub create \
     --name          "${DEPLOYMENT_NAME}" \
     --location      "${LOCATION}" \
-    --template-file infra/main.bicep \
-    --parameters    infra/main.bicepparam \
+    --template-file "${REPO_ROOT}/infra/bicep/main.bicep" \
+    --parameters    "${REPO_ROOT}/infra/bicep/main.bicepparam" \
     --output none
 
   DEPLOY_STATE=$(az deployment sub show \

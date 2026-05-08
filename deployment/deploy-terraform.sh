@@ -7,18 +7,22 @@
 #   - Docker daemon running locally
 #
 # Usage:
-#   First deploy:   ./deploy-terraform.sh
-#   Code change:    ./deploy-terraform.sh --skip-infra
+#   First deploy:   ./deployment/deploy-terraform.sh
+#   Code change:    ./deployment/deploy-terraform.sh --skip-infra
 
 set -euo pipefail
+
+# Resolve the repo root regardless of the caller's working directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Configuration — edit these to match your environment
 # ─────────────────────────────────────────────────────────────────────────────
 AGENT_NAME="agent-framework-agent-basic-invocations-tf"
-AGENT_SOURCE_DIR="./src/agent-framework-agent-basic-invocations"
+AGENT_SOURCE_DIR="${REPO_ROOT}/src/agent-framework-agent-basic-invocations"
 IMAGE_NAME="agent-framework-agent-basic-invocations"
-TF_DIR="./infra/terraform"
+TF_DIR="${REPO_ROOT}/infra/terraform"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Argument parsing

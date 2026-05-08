@@ -9,11 +9,12 @@ A minimal reference for deploying a Python AI agent to Azure AI Foundry Hosted A
 | Layer | What it is |
 |---|---|
 | `src/agent-framework-agent-basic-invocations/` | Python agent built with Agent Framework + `InvocationAgentServerHost` |
-| `infra/modules/foundry.bicep` | AI Services account, model deployments, account-level capability host |
-| `infra/modules/foundry-project.bicep` | Foundry project, App Insights connection, Azure AI User role for project MI |
-| `infra/modules/acr.bicep` | Container registry, AcrPull for project MI, ACR connection |
-| `infra/modules/storage.bicep` | Blob storage, Storage Blob Data Contributor for project MI, storage connection |
-| `deploy.sh` | Single-script deploy: infra → image → agent |
+| `infra/bicep/modules/foundry.bicep` | AI Services account, model deployments, account-level capability host |
+| `infra/bicep/modules/foundry-project.bicep` | Foundry project, App Insights connection, Azure AI User role for project MI |
+| `infra/bicep/modules/acr.bicep` | Container registry, AcrPull for project MI, ACR connection |
+| `infra/bicep/modules/storage.bicep` | Blob storage, Storage Blob Data Contributor for project MI, storage connection |
+| `deployment/deploy.sh` | Single-script deploy (Bicep): infra → image → agent |
+| `deployment/deploy-terraform.sh` | Single-script deploy (Terraform): infra → image → agent |
 
 The **Foundry data plane** (`POST {projectEndpoint}/agents/{name}/versions?api-version=2025-11-15-preview`) is used to create agent versions — NOT `az cognitiveservices agent create`, which calls a broken `containers/default:start` operation.
 
@@ -23,10 +24,10 @@ The **Foundry data plane** (`POST {projectEndpoint}/agents/{name}/versions?api-v
 
 ```bash
 # Full deploy (infra + image + agent)
-./deploy.sh
+./deployment/deploy.sh
 
 # Code change only — skip Bicep
-./deploy.sh --skip-infra
+./deployment/deploy.sh --skip-infra
 ```
 
 No `azd`, no `az cognitiveservices` extension. Prerequisites: `az login`, Docker daemon running.
@@ -50,7 +51,7 @@ Foundry Agent Service creates a **per-version `instance_identity`** (a dedicated
 |---|---|---|---|
 | Azure AI User | `53ca6127` | AI Account | Step 7 of deploy script, after `az rest POST .../versions` |
 
-The deploy scripts (`deploy.sh`, `deploy-terraform.sh`) parse `instance_identity.principal_id` from the version creation response and grant this role automatically (Step 7).
+The deploy scripts (`deployment/deploy.sh`, `deployment/deploy-terraform.sh`) parse `instance_identity.principal_id` from the version creation response and grant this role automatically (Step 7).
 
 Missing Azure AI User on the instance identity → container starts but every model call gets `401 PermissionDenied`.
 
@@ -99,7 +100,7 @@ The Foundry runtime injects these automatically at container start — do not se
 - All resource names use `resourceToken = uniqueString(subscription().id, resourceGroup().id, location)` — never hardcode names.
 - ACR connection uses `authType: ManagedIdentity`; storage connection uses `authType: AAD`. No stored keys anywhere.
 - Model deployments run with `@batchSize(1)` to avoid capacity conflicts.
-- New Bicep modules belong in `infra/modules/`; always add them to `main.bicep` with a section comment block.
+- New Bicep modules belong in `infra/bicep/modules/`; always add them to `infra/bicep/main.bicep` with a section comment block.
 
 ---
 

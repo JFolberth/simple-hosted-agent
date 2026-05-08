@@ -65,19 +65,23 @@ See [Capability hosts](https://learn.microsoft.com/azure/foundry/agents/concepts
 
 ```
 .
-├── deploy.sh                          # Full deploy script (infra + image + agent)
+├── deployment/
+│   ├── deploy.sh                      # Full deploy script (infra + image + agent) — Bicep
+│   └── deploy-terraform.sh            # Full deploy script (infra + image + agent) — Terraform
 ├── infra/
-│   ├── main.bicep                     # Subscription-scoped orchestrator
-│   ├── main.bicepparam                # Parameter values — edit before deploying
-│   ├── abbreviations.json             # Resource naming prefixes
-│   └── modules/
-│       ├── foundry.bicep              # AI Services account + model deployments + capability host
-│       ├── foundry-project.bicep      # Foundry project + App Insights connection
-│       ├── foundry-project-connection.bicep  # Reusable connection resource
-│       ├── acr.bicep                  # Container Registry + AcrPull role + ACR connection
-│       ├── storage.bicep              # Storage account + Blob Contributor role + storage connection
-│       ├── loganalytics.bicep         # Log Analytics workspace
-│       └── applicationinsights.bicep  # Application Insights component
+│   ├── bicep/
+│   │   ├── main.bicep                 # Subscription-scoped orchestrator
+│   │   ├── main.bicepparam            # Parameter values — edit before deploying
+│   │   ├── abbreviations.json         # Resource naming prefixes
+│   │   └── modules/
+│   │       ├── foundry.bicep          # AI Services account + model deployments + capability host
+│   │       ├── foundry-project.bicep  # Foundry project + App Insights connection
+│   │       ├── foundry-project-connection.bicep  # Reusable connection resource
+│   │       ├── acr.bicep              # Container Registry + AcrPull role + ACR connection
+│   │       ├── storage.bicep          # Storage account + Blob Contributor role + storage connection
+│   │       ├── loganalytics.bicep     # Log Analytics workspace
+│   │       └── applicationinsights.bicep  # Application Insights component
+│   └── terraform/                     # Terraform (azapi) alternative — mirrors Bicep modules
 └── src/
     └── agent-framework-agent-basic-invocations/
         ├── main.py                    # Agent implementation
@@ -93,11 +97,11 @@ See [Capability hosts](https://learn.microsoft.com/azure/foundry/agents/concepts
 Regardless of whether you use the dev container or a local setup, you need:
 
 - An **Azure subscription**
-- The model you configure in `main.bicepparam` available in your chosen region
+- The model you configure in `infra/bicep/main.bicepparam` available in your chosen region
 
 ### Required Azure permissions
 
-`deploy.sh` performs these operations, each requiring different permissions on the identity running the script:
+`deployment/deploy.sh` performs these operations, each requiring different permissions on the identity running the script:
 
 | Operation | What it does | Required role | Scope |
 |---|---|---|---|
@@ -112,7 +116,7 @@ Regardless of whether you use the dev container or a local setup, you need:
 > > *"Azure AI Project Manager at the project scope is the recommended role assignment for agent creators, as that role includes both the required data plane permissions and the ability to assign the Azure AI User role."*
 > > — [Hosted agent permissions reference — Agent creation](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agent-permissions#agent-creation)
 >
-> `deploy.sh` handles this automatically (Step 3) with an idempotent `az role assignment create` followed by a 30-second propagation wait, so you don't need to pre-configure it manually.
+> `deployment/deploy.sh` handles this automatically (Step 3) with an idempotent `az role assignment create` followed by a 30-second propagation wait, so you don't need to pre-configure it manually.
 
 If your identity has **Owner** at subscription scope it satisfies the ARM operations. The project-scope data plane assignment is always made explicitly by the script regardless.
 
@@ -154,7 +158,7 @@ az login
 
 ## Configuration
 
-Before deploying, open `infra/main.bicepparam` and set values for your environment:
+Before deploying, open `infra/bicep/main.bicepparam` and set values for your environment:
 
 ```bicep
 param environmentName       = 'simple-hosted-agent'      // Used in resource naming
@@ -184,7 +188,7 @@ az cognitiveservices model list --location <region> \
   --output table
 ```
 
-Also update the top of `deploy.sh` to match:
+Also update the top of `deployment/deploy.sh` to match:
 
 ```bash
 ENVIRONMENT_NAME="simple-hosted-agent"   # Must match environmentName in main.bicepparam
@@ -195,17 +199,17 @@ LOCATION="swedencentral"                 # Must match location in main.biceppara
 
 ## Deploying
 
-`deploy.sh` performs the entire deployment in five steps:
+`deployment/deploy.sh` performs the entire deployment in seven steps:
 
 ```bash
-chmod +x deploy.sh
-./deploy.sh
+chmod +x deployment/deploy.sh
+./deployment/deploy.sh
 ```
 
 ### What it does
 
 **Step 1 — Deploy infrastructure**
-Runs `az deployment sub create` against `infra/main.bicep`. This creates the resource group and all six Azure resources. On subsequent runs, Bicep is idempotent — only changed resources are updated.
+Runs `az deployment sub create` against `infra/bicep/main.bicep`. This creates the resource group and all six Azure resources. On subsequent runs, Bicep is idempotent — only changed resources are updated.
 
 **Step 2 — Read outputs**
 Retrieves `az deployment sub show` output values: AI account name, project name, ACR endpoint, and model deployment name. These drive every subsequent step.
@@ -227,7 +231,7 @@ POSTs to the Foundry data plane (`{projectEndpoint}/agents/{name}/versions?api-v
 If you only changed agent code (not infra), skip the Bicep step:
 
 ```bash
-./deploy.sh --skip-infra
+./deployment/deploy.sh --skip-infra
 ```
 
 ---

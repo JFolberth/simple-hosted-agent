@@ -30,7 +30,7 @@ resource "azapi_resource" "project" {
 # also use it to surface traces.
 
 module "app_insights_connection" {
-  count  = var.app_insights_id != "" ? 1 : 0
+  count  = var.enable_app_insights ? 1 : 0
   source = "../foundry_project_connection"
 
   project_id = azapi_resource.project.id
@@ -55,7 +55,7 @@ module "app_insights_connection" {
 # evaluations can query agent traces.
 
 resource "azapi_resource" "log_analytics_reader_role" {
-  count = var.app_insights_id != "" ? 1 : 0
+  count = var.enable_app_insights ? 1 : 0
 
   type = "Microsoft.Authorization/roleAssignments@2022-04-01"
   # Deterministic UUID scoped to: App Insights resource × project name × role

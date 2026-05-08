@@ -25,15 +25,21 @@ variable "ai_account_id" {
 
 variable "app_insights_id" {
   type        = string
-  description = "Resource ID of the Application Insights instance. Pass empty string to skip."
+  description = "Resource ID of the Application Insights instance."
   default     = ""
 }
 
 variable "app_insights_connection_string" {
   type        = string
-  description = "Connection string for App Insights. Pass empty string to skip."
+  description = "Connection string for App Insights."
   sensitive   = true
   default     = ""
+}
+
+variable "enable_app_insights" {
+  type        = bool
+  description = "Set to false to skip the App Insights connection and Log Analytics Reader role assignment. Must be a literal value (not derived from a resource output) because Terraform evaluates it at plan time."
+  default     = true
 }
 
 variable "subscription_id" {

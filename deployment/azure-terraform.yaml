@@ -29,6 +29,13 @@ services:
                     name: Standard
             startupCommand: python main.py
 
+hooks:
+    postprovision:
+        shell: sh
+        run: ./scripts/grant-project-manager.sh
+        interactive: false
+        continueOnError: false
+
 infra:
     provider: terraform
     path: ../infra/terraform

@@ -92,6 +92,8 @@ No Bicep CLI or Terraform install needed — azd uses ACR remote build for the i
 
 ### Local — Shell scripts (Bicep)
 
+> **Note:** The shell scripts require a Bash environment (macOS, Linux, WSL, or Azure Cloud Shell). They do not run natively on Windows. Use `azd` instead for a cross-platform deployment experience.
+
 | Tool | Install |
 |---|---|
 | [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) | `brew install azure-cli` / [Windows installer](https://aka.ms/installazurecliwindows) |
@@ -99,6 +101,8 @@ No Bicep CLI or Terraform install needed — azd uses ACR remote build for the i
 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Platform installer |
 
 ### Local — Shell scripts (Terraform)
+
+> **Note:** The shell scripts require a Bash environment (macOS, Linux, WSL, or Azure Cloud Shell). They do not run natively on Windows. Use `azd` instead for a cross-platform deployment experience or a devcontainer.
 
 | Tool | Install |
 |---|---|
@@ -204,24 +208,34 @@ State is stored locally in `infra/terraform/terraform.tfstate`. This is suitable
 
 ### Option 1 — azd (recommended)
 
-`azd` handles infrastructure provisioning, image build (via ACR remote build), and agent deployment in a single `azd up` command. The `azure.ai.agents` azd extension manages the full agent lifecycle including the per-version `instance_identity` Azure AI User role assignment.
+`azd` handles infrastructure provisioning, image build (via ACR remote build), and agent deployment in a single `azd up` command.
+
+**How it works under the hood:**
+
+1. `azd provision` runs Bicep/Terraform and creates all Azure resources.
+2. A `postprovision` hook (`deployment/scripts/grant-project-manager.sh`) runs automatically — it grants **Azure AI Project Manager** to the deploying principal at the Foundry project scope. This step is required because the Foundry data plane evaluates `Microsoft.CognitiveServices/accounts/AIServices/agents/write` at project scope specifically, and subscription/resource group scoped assignments are not reliably inherited. Without this grant, the next step gets a `401 PermissionDenied`.
+3. The `azure.ai.agents` azd extension calls the Foundry data plane (`POST .../agents/{name}/versions`) to register the container as a hosted agent version, then grants **Azure AI User** to the per-version `instance_identity` managed identity on the AI account (so the container can call the model endpoint).
 
 **Prerequisites:** `azd` CLI installed + `azure.ai.agents` extension (both installed automatically in the dev container).
 
 **First-time setup:**
 
 ```bash
-# 1. Choose Bicep or Terraform — creates deployment/azure.yaml
+# 1. Log in to azd (separate from az login — azd has its own auth context)
+azd auth login
+
+# 2. Choose Bicep or Terraform — creates deployment/azure.yaml
 ./deployment/azd-select.sh
 
-# 2. Move into the deployment directory (azd reads azure.yaml from CWD)
+# 3. Move into the deployment directory (azd reads azure.yaml from CWD)
 cd deployment
 
-# 3. Create a new azd environment
+# 4. Create a new azd environment
 azd env new <env-name>
 
-# 4. Set required environment variables
+# 5. Set required environment variables
 azd env set AZURE_LOCATION swedencentral
+azd env set AZURE_TENANT_ID "$(az account show --query tenantId -o tsv)"
 
 # Bicep only:
 azd env set AZURE_AI_DEPLOYMENTS_LOCATION swedencentral
@@ -229,9 +243,11 @@ azd env set AZURE_AI_DEPLOYMENTS_LOCATION swedencentral
 # Terraform only (maps to TF_VAR_ai_deployments_location):
 azd env set AI_DEPLOYMENTS_LOCATION swedencentral
 
-# 5. Provision infrastructure and deploy the agent
+# 6. Provision infrastructure and deploy the agent
 azd up
 ```
+
+> **Why set `AZURE_TENANT_ID` explicitly?** The `azure.ai.agents` extension's deploy handler requires `AZURE_TENANT_ID` to authenticate against the Foundry data plane. azd normally injects this from its own auth context (populated by `azd auth login`), but setting it explicitly from `az account show` is the reliable fallback and works regardless of azd auth state.
 
 **Subsequent code-only changes:**
 

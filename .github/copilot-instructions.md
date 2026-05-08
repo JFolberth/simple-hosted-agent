@@ -1,6 +1,6 @@
 # simple-hosted-agent — Copilot Instructions
 
-A minimal reference for deploying a Python AI agent to Azure AI Foundry Hosted Agents using the **Invocations protocol**. Infrastructure is available in two flavors — **Bicep** and **Terraform (azapi)** — deployed with a single shell script. No Azure Developer CLI (`azd`) is required.
+A minimal reference for deploying a Python AI agent to Azure AI Foundry Hosted Agents using the **Invocations protocol**. Infrastructure is available in two flavors — **Bicep** and **Terraform (azapi)** — deployed either with a single shell script or with the **Azure Developer CLI (`azd`)**.
 
 ---
 
@@ -22,12 +22,18 @@ A minimal reference for deploying a Python AI agent to Azure AI Foundry Hosted A
 | `infra/terraform/modules/foundry_project_connection/` | Reusable Terraform module for Foundry project connections |
 | `deployment/deploy-bicep.sh` | Single-script deploy (Bicep): infra → image → agent |
 | `deployment/deploy-terraform.sh` | Single-script deploy (Terraform): infra → image → agent |
+| `deployment/azd-select.sh` | Interactive prompt — copies `azure-bicep.yaml` or `azure-terraform.yaml` to `deployment/azure.yaml` |
+| `deployment/azure-bicep.yaml` | azd config for Bicep (`infra.provider: bicep`, points to `deployment/infra-azd/`) |
+| `deployment/azure-terraform.yaml` | azd config for Terraform (`infra.provider: terraform`, points to `infra/terraform/`) |
+| `deployment/infra-azd/main.bicepparam` | azd-compatible Bicep parameter shim — uses `readEnvironmentVariable()` for azd env var injection |
 
 The **Foundry data plane** (`POST {projectEndpoint}/agents/{name}/versions?api-version=2025-11-15-preview`) is used to create agent versions — NOT `az cognitiveservices agent create`, which calls a broken `containers/default:start` operation.
 
 ---
 
 ## Build & Deploy
+
+### Shell scripts
 
 ```bash
 # Bicep
@@ -39,7 +45,27 @@ The **Foundry data plane** (`POST {projectEndpoint}/agents/{name}/versions?api-v
 ./deployment/deploy-terraform.sh --skip-infra  # Code change only
 ```
 
-No `azd`, no `az cognitiveservices` extension. Prerequisites: `az login`, Docker daemon running. Terraform also requires `terraform >= 1.9` in PATH.
+Prerequisites: `az login`, Docker daemon running. Terraform also requires `terraform >= 1.9` in PATH.
+
+### azd
+
+```bash
+# 1. Select Bicep or Terraform — writes deployment/azure.yaml (gitignored)
+./deployment/azd-select.sh
+
+# 2. Run from deployment/ — azd reads azure.yaml from CWD
+cd deployment
+azd env new <env-name>
+azd env set AZURE_LOCATION <region>
+azd env set AZURE_AI_DEPLOYMENTS_LOCATION <region>   # Bicep only
+azd env set AI_DEPLOYMENTS_LOCATION <region>          # Terraform only → TF_VAR_ai_deployments_location
+azd up
+
+# Code-only changes:
+azd deploy
+```
+
+Prerequisites: `az login`, `azd` CLI, `azure.ai.agents` extension (`azd extension install azure.ai.agents`). The dev container installs all of these automatically. The `azure.ai.agents` extension handles the full agent lifecycle including the per-version `instance_identity` Azure AI User role assignment (equivalent to Step 7 of the deploy scripts).
 
 ---
 
@@ -118,6 +144,7 @@ The Foundry runtime injects these automatically at container start — do not se
 - ACR connection uses `authType: ManagedIdentity`; storage connection uses `authType: AAD`. No stored keys anywhere.
 - Model deployments run with `@batchSize(1)` to avoid capacity conflicts.
 - New Bicep modules belong in `infra/bicep/modules/`; always add them to `infra/bicep/main.bicep` with a section comment block.
+- The azd-compatible parameter shim is `deployment/infra-azd/main.bicepparam`. It uses `readEnvironmentVariable()` and references `infra/bicep/main.bicep` via `using '../../infra/bicep/main.bicep'`. Do not modify `infra/bicep/main.bicepparam` for azd use — that file is for the shell-script workflow.
 
 ### Terraform
 - All resource names use `resource_token = lower(random_id.resource_token.hex)` keyed on `subscription_id × resource_group_name × ai_deployments_location` — mirrors Bicep's `uniqueString`.
@@ -138,3 +165,6 @@ The Foundry runtime injects these automatically at container start — do not se
 - Do not use `azurerm` or `hashicorp/azapi` as the Terraform provider source — use `Azure/azapi`.
 - Do not omit `schema_validation_enabled = false` on `azapi_resource` blocks using `@2026-03-01` or `@2025-10-01-preview` API versions.
 - Do not derive Terraform `count` values from resource attributes that are unknown at plan time — use explicit bool input variables instead.
+- Do not place an `azure.yaml` at the repo root — azd must be run from `deployment/` where it finds the generated `azure.yaml`.
+- Do not commit `deployment/azure.yaml` — it is gitignored and generated locally by `deployment/azd-select.sh`.
+- Do not modify `infra/` or `src/` to accommodate azd — the `deployment/infra-azd/` shim and `deployment/azure-*.yaml` files are the only azd-specific additions.

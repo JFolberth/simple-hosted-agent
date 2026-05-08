@@ -1,5 +1,6 @@
 # Azure Developer CLI
 .azure
+deployment/azure.yaml
 
 # Bicep compiled output
 *.json.bicep

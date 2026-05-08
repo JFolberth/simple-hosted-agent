@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# deploy.sh — deploy simple-hosted-agent without azd
+# deploy-bicep.sh — deploy simple-hosted-agent without azd
 #
 # Prerequisites:
 #   - az login (or service principal auth already configured)
 #   - Docker daemon running locally
 #
 # Usage:
-#   First deploy:   ./deployment/deploy.sh
-#   Code change:    ./deployment/deploy.sh --skip-infra
+#   First deploy:   ./deployment/deploy-bicep.sh
+#   Code change:    ./deployment/deploy-bicep.sh --skip-infra
 
 set -euo pipefail
 

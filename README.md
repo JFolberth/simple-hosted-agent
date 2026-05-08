@@ -66,7 +66,7 @@ See [Capability hosts](https://learn.microsoft.com/azure/foundry/agents/concepts
 ```
 .
 ├── deployment/
-│   ├── deploy.sh                      # Full deploy script (infra + image + agent) — Bicep
+│   ├── deploy-bicep.sh                # Full deploy script (infra + image + agent) — Bicep
 │   └── deploy-terraform.sh            # Full deploy script (infra + image + agent) — Terraform
 ├── infra/
 │   ├── bicep/
@@ -115,7 +115,7 @@ Regardless of whether you use the dev container or a local setup, you need:
 
 ### Required Azure permissions
 
-`deployment/deploy.sh` performs these operations, each requiring different permissions on the identity running the script:
+`deployment/deploy-bicep.sh` performs these operations, each requiring different permissions on the identity running the script:
 
 | Operation | What it does | Required role | Scope |
 |---|---|---|---|
@@ -130,7 +130,7 @@ Regardless of whether you use the dev container or a local setup, you need:
 > > *"Azure AI Project Manager at the project scope is the recommended role assignment for agent creators, as that role includes both the required data plane permissions and the ability to assign the Azure AI User role."*
 > > — [Hosted agent permissions reference — Agent creation](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agent-permissions#agent-creation)
 >
-> `deployment/deploy.sh` handles this automatically (Step 3) with an idempotent `az role assignment create` followed by a 30-second propagation wait, so you don't need to pre-configure it manually.
+> `deployment/deploy-bicep.sh` handles this automatically (Step 3) with an idempotent `az role assignment create` followed by a 30-second propagation wait, so you don't need to pre-configure it manually.
 
 If your identity has **Owner** at subscription scope it satisfies the ARM operations. The project-scope data plane assignment is always made explicitly by the script regardless.
 
@@ -207,7 +207,7 @@ az cognitiveservices model list --location <region> \
   --output table
 ```
 
-Also update the top of `deployment/deploy.sh` to match:
+Also update the top of `deployment/deploy-bicep.sh` to match:
 
 ```bash
 ENVIRONMENT_NAME="simple-hosted-agent"   # Must match environmentName in main.bicepparam
@@ -248,11 +248,11 @@ State is stored locally in `infra/terraform/terraform.tfstate`. This is suitable
 
 ### Bicep
 
-`deployment/deploy.sh` performs the entire deployment in seven steps:
+`deployment/deploy-bicep.sh` performs the entire deployment in seven steps:
 
 ```bash
-chmod +x deployment/deploy.sh
-./deployment/deploy.sh
+chmod +x deployment/deploy-bicep.sh
+./deployment/deploy-bicep.sh
 ```
 
 #### What it does
@@ -283,7 +283,7 @@ Foundry Agent Service provisions a dedicated per-version managed identity (`inst
 If you only changed agent code (not infra), skip the Bicep step:
 
 ```bash
-./deployment/deploy.sh --skip-infra
+./deployment/deploy-bicep.sh --skip-infra
 ```
 
 ### Terraform

@@ -20,7 +20,7 @@ A minimal reference for deploying a Python AI agent to Azure AI Foundry Hosted A
 | `infra/terraform/modules/loganalytics/` | Log Analytics workspace (Terraform) |
 | `infra/terraform/modules/applicationinsights/` | Application Insights component (Terraform) |
 | `infra/terraform/modules/foundry_project_connection/` | Reusable Terraform module for Foundry project connections |
-| `deployment/deploy.sh` | Single-script deploy (Bicep): infra → image → agent |
+| `deployment/deploy-bicep.sh` | Single-script deploy (Bicep): infra → image → agent |
 | `deployment/deploy-terraform.sh` | Single-script deploy (Terraform): infra → image → agent |
 
 The **Foundry data plane** (`POST {projectEndpoint}/agents/{name}/versions?api-version=2025-11-15-preview`) is used to create agent versions — NOT `az cognitiveservices agent create`, which calls a broken `containers/default:start` operation.
@@ -31,8 +31,8 @@ The **Foundry data plane** (`POST {projectEndpoint}/agents/{name}/versions?api-v
 
 ```bash
 # Bicep
-./deployment/deploy.sh             # Full deploy (infra + image + agent)
-./deployment/deploy.sh --skip-infra  # Code change only
+./deployment/deploy-bicep.sh             # Full deploy (infra + image + agent)
+./deployment/deploy-bicep.sh --skip-infra  # Code change only
 
 # Terraform
 ./deployment/deploy-terraform.sh             # Full deploy
@@ -60,7 +60,7 @@ Foundry Agent Service creates a **per-version `instance_identity`** (a dedicated
 |---|---|---|---|
 | Azure AI User | `53ca6127` | AI Account | Step 7 of deploy script, after `az rest POST .../versions` |
 
-The deploy scripts (`deployment/deploy.sh`, `deployment/deploy-terraform.sh`) parse `instance_identity.principal_id` from the version creation response and grant this role automatically (Step 7).
+The deploy scripts (`deployment/deploy-bicep.sh`, `deployment/deploy-terraform.sh`) parse `instance_identity.principal_id` from the version creation response and grant this role automatically (Step 7).
 
 Missing Azure AI User on the instance identity → container starts but every model call gets `401 PermissionDenied`.
 

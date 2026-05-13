@@ -1,6 +1,6 @@
 # simple-hosted-agent — Copilot Instructions
 
-A minimal reference for deploying a Python AI agent to Azure AI Foundry Hosted Agents using the **Responses protocol**. Infrastructure is available in two flavors — **Bicep** and **Terraform (azapi)** — deployed either with a single shell script or with the **Azure Developer CLI (`azd`)**.
+A minimal reference for deploying a Python AI agent to Azure AI Foundry Hosted Agents using the **Invocations protocol**. Infrastructure is available in two flavors — **Bicep** and **Terraform (azapi)** — deployed either with a single shell script or with the **Azure Developer CLI (`azd`)**.
 
 ---
 
@@ -8,7 +8,7 @@ A minimal reference for deploying a Python AI agent to Azure AI Foundry Hosted A
 
 | Layer | What it is |
 |---|---|
-| `src/agent-framework/responses/basic/` | Python agent built with Agent Framework + `ResponsesHostServer` |
+| `src/agent-framework-agent-basic-invocations/` | Python agent built with Agent Framework + `InvocationAgentServerHost` |
 | `infra/bicep/modules/foundry.bicep` | AI Services account, model deployments, account-level capability host |
 | `infra/bicep/modules/foundry-project.bicep` | Foundry project, App Insights connection, Azure AI User role for project MI |
 | `infra/bicep/modules/acr.bicep` | Container registry, AcrPull for project MI, ACR connection |
@@ -120,7 +120,7 @@ Required fields in the request body:
   "metadata": {"enableVnextExperience": "true"},
   "definition": {
     "kind": "hosted",
-    "container_protocol_versions": [{"protocol": "responses", "version": "1.0.0"}],
+    "container_protocol_versions": [{"protocol": "invocations", "version": "1.0.0"}],
     "image": "<acr>/<name>:<tag>",
     "cpu": "0.25",
     "memory": "0.5Gi",
@@ -130,8 +130,8 @@ Required fields in the request body:
 ```
 `metadata.enableVnextExperience: "true"` is a hard server-side requirement — omitting it causes a silent failure. Auth scope: `https://ai.azure.com/` (not `cognitiveservices.azure.com`).
 
-### Responses protocol
-The agent uses `ResponsesHostServer` on port 8088. The `@app.response_handler` receives the request; conversation history is managed automatically by the platform via `previous_response_id`. There is no in-memory session store required.
+### Invocations protocol
+The agent uses `InvocationAgentServerHost` on port 8088. The `@app.invoke_handler` receives the raw `Request`; session ID comes from `request.state.session_id`. The in-memory `_sessions` store is intentionally simple — replace with Redis/Cosmos DB for production.
 
 ### Environment variables
 The Foundry runtime injects these automatically at container start — do not set them manually in agent versions:

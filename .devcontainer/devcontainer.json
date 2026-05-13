@@ -14,7 +14,7 @@
       "tflint": "latest"
     }
   },
-  "postCreateCommand": "pip install -r src/agent-framework/responses/basic/requirements.txt && az bicep install && curl -fsSL https://aka.ms/install-azd.sh | bash && azd extension install azure.ai.agents",
+  "postCreateCommand": "pip install -r src/agent-framework-agent-basic-invocations/requirements.txt && az bicep install && curl -fsSL https://aka.ms/install-azd.sh | bash && azd extension install azure.ai.agents",
   "customizations": {
     "vscode": {
       "extensions": [

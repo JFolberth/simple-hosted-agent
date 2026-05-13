@@ -19,9 +19,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ─────────────────────────────────────────────────────────────────────────────
 # Configuration — edit these to match your environment
 # ─────────────────────────────────────────────────────────────────────────────
-AGENT_NAME="agent-framework-agent-basic-invocations-tf"
-AGENT_SOURCE_DIR="${REPO_ROOT}/src/agent-framework-agent-basic-invocations"
-IMAGE_NAME="agent-framework-agent-basic-invocations"
+AGENT_NAME="agent-framework-agent-basic-responses-tf"
+AGENT_SOURCE_DIR="${REPO_ROOT}/src/agent-framework/responses/basic"
+IMAGE_NAME="agent-framework-agent-basic-responses"
 TF_DIR="${REPO_ROOT}/infra/terraform"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -136,7 +136,7 @@ body = {
   "metadata": {"enableVnextExperience": "true"},
   "definition": {
     "kind": "hosted",
-    "container_protocol_versions": [{"protocol": "invocations", "version": "1.0.0"}],
+    "container_protocol_versions": [{"protocol": "responses", "version": "1.0.0"}],
     "cpu": "0.25",
     "memory": "0.5Gi",
     "environment_variables": {

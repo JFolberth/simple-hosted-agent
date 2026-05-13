@@ -20,9 +20,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ─────────────────────────────────────────────────────────────────────────────
 ENVIRONMENT_NAME="simple-hosted-agent3"
 LOCATION="eastus"
-AGENT_NAME="agent-framework-agent-basic-invocations3"
-AGENT_SOURCE_DIR="${REPO_ROOT}/src/agent-framework-agent-basic-invocations"
-IMAGE_NAME="agent-framework-agent-basic-invocations"
+AGENT_NAME="agent-framework-agent-basic-responses"
+AGENT_SOURCE_DIR="${REPO_ROOT}/src/agent-framework/responses/basic"
+IMAGE_NAME="agent-framework-agent-basic-responses"
 DEPLOYMENT_NAME="deploy-${ENVIRONMENT_NAME}"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ body = {
   "metadata": {"enableVnextExperience": "true"},
   "definition": {
     "kind": "hosted",
-    "container_protocol_versions": [{"protocol": "invocations", "version": "1.0.0"}],
+    "container_protocol_versions": [{"protocol": "responses", "version": "1.0.0"}],
     "cpu": "0.25",
     "memory": "0.5Gi",
     "environment_variables": {

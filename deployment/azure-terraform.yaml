@@ -6,8 +6,8 @@ requiredVersions:
         azure.ai.agents: '>=0.1.0-preview'
 
 services:
-    agent-framework-agent-basic-invocations:
-        project: ../src/agent-framework-agent-basic-invocations
+    agent-framework-agent-basic-responses:
+        project: ../src/agent-framework/responses/basic
         host: azure.ai.agent
         language: docker
         docker:

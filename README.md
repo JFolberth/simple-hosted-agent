@@ -1,6 +1,6 @@
 # Simple Hosted Agent
 
-A minimal, production-ready reference for deploying a Python AI agent to [Microsoft Foundry Agent Service](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents) using the **Invocations protocol**. Infrastructure is available in two flavors — **Bicep** and **Terraform (azapi)** — and deployed either with a single shell script or with the **Azure Developer CLI (`azd`)**.
+A minimal, production-ready reference for deploying a Python AI agent to [Microsoft Foundry Agent Service](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents) using the **Responses protocol**. Infrastructure is available in two flavors — **Bicep** and **Terraform (azapi)** — and deployed either with a single shell script or with the **Azure Developer CLI (`azd`)**.
 
 ---
 
@@ -28,9 +28,9 @@ See the official Microsoft documentation: [What are hosted agents?](https://lear
 
 ### Agent
 
-`src/agent-framework-agent-basic-invocations/` contains a Python agent built with the [Agent Framework](https://github.com/microsoft/agent-framework). It uses the **Invocations protocol** — the agent defines its own HTTP contract, manages its own session store, and formats streaming Server-Sent Events directly. This is the right choice when you need full control over the request/response shape.
+`src/agent-framework/responses/basic/` contains a Python agent built with the [Agent Framework](https://github.com/microsoft/agent-framework). It uses the **Responses protocol** — the platform manages conversation history and streaming automatically, and any OpenAI-compatible SDK can talk to it.
 
-> **Responses vs. Invocations**: The Responses protocol is the simpler starting point — the platform manages conversation history and streaming automatically, and any OpenAI-compatible SDK can talk to it. Invocations gives you complete HTTP control at the cost of managing sessions yourself. See the [protocol comparison](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents#key-concepts) for guidance.
+> **Protocol note**: This sample uses the **Responses protocol**. For a sample using the Invocations protocol instead, see [simple-hosted-agent](https://github.com/JFolberth/simple-hosted-agent). See the [protocol comparison](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents#key-concepts) for guidance on when to choose each.
 
 ### Infrastructure
 
@@ -288,10 +288,10 @@ The Foundry data plane checks the `agents/write` permission at the Foundry **pro
 Runs `az acr login` so Docker can push to the private registry.
 
 **Step 5 — Build and push image**
-Builds the Docker image from `src/agent-framework-agent-basic-invocations/` and tags it with the short Git commit hash. Tags are immutable — each commit produces a new image tag.
+Builds the Docker image from `src/agent-framework/responses/basic/` and tags it with the short Git commit hash. Tags are immutable — each commit produces a new image tag.
 
 **Step 6 — Deploy the hosted agent**
-POSTs to the Foundry data plane (`{projectEndpoint}/agents/{name}/versions?api-version=2025-11-15-preview`) via `az rest` with `--resource https://ai.azure.com/`. The request body specifies `kind: hosted`, the container image tag, CPU/memory, protocol (`invocations 1.0.0`), and the `AZURE_AI_MODEL_DEPLOYMENT_NAME` environment variable. The platform pulls the image, provisions a micro VM, and creates a dedicated Entra identity and endpoint for the agent. The Foundry runtime also injects `FOUNDRY_PROJECT_ENDPOINT` and `APPLICATIONINSIGHTS_CONNECTION_STRING` automatically. The management-plane CLI (`az cognitiveservices agent create`) is **not** used — it calls a separate start operation that returns 404 for hosted agents.
+POSTs to the Foundry data plane (`{projectEndpoint}/agents/{name}/versions?api-version=2025-11-15-preview`) via `az rest` with `--resource https://ai.azure.com/`. The request body specifies `kind: hosted`, the container image tag, CPU/memory, protocol (`responses 1.0.0`), and the `AZURE_AI_MODEL_DEPLOYMENT_NAME` environment variable. The platform pulls the image, provisions a micro VM, and creates a dedicated Entra identity and endpoint for the agent. The Foundry runtime also injects `FOUNDRY_PROJECT_ENDPOINT` and `APPLICATIONINSIGHTS_CONNECTION_STRING` automatically. The management-plane CLI (`az cognitiveservices agent create`) is **not** used — it calls a separate start operation that returns 404 for hosted agents.
 
 **Step 7 — Grant Azure AI User to the agent version's instance identity**
 Foundry Agent Service provisions a dedicated per-version managed identity (`instance_identity`) for each hosted agent version. The container authenticates as this identity — not the project MI — when making model calls. This identity is only known after the version is created, so the role cannot be pre-provisioned by IaC. The script parses `instance_identity.principal_id` from the version creation response and grants Azure AI User (`53ca6127`) on the AI account, then waits 30 seconds for propagation.
@@ -325,28 +325,26 @@ Skip infrastructure on code-only changes:
 
 After deployment, the agent is accessible through its Foundry endpoint. Open the [Foundry portal](https://ai.azure.com), navigate to your project, and select the agent to open the playground.
 
-You can also call it directly using `curl`. The Invocations endpoint accepts arbitrary JSON:
+You can also call it directly using `curl`. The Responses endpoint is OpenAI-compatible:
 
 ```bash
 # Non-streaming
 curl -X POST \
-  "<project_endpoint>/agents/agent-framework-agent-basic-invocations/endpoint/protocols/invocations" \
-  -H "Authorization: Bearer $(az account get-access-token --resource https://cognitiveservices.azure.com --query accessToken -o tsv)" \
+  "<project_endpoint>/agents/agent-framework-agent-basic-responses/endpoint/protocols/responses" \
+  -H "Authorization: Bearer $(az account get-access-token --resource https://ai.azure.com --query accessToken -o tsv)" \
   -H "Content-Type: application/json" \
   -d '{"input": "Hi!"}'
 ```
 
-For multi-turn conversation, capture the `x-agent-session-id` header from the first response and pass it as a query parameter:
+For multi-turn conversation, include the `previous_response_id` from the prior response:
 
 ```bash
 curl -X POST \
-  "<project_endpoint>/agents/agent-framework-agent-basic-invocations/endpoint/protocols/invocations?agent_session_id=<session_id>" \
-  -H "Authorization: Bearer $(az account get-access-token --resource https://cognitiveservices.azure.com --query accessToken -o tsv)" \
+  "<project_endpoint>/agents/agent-framework-agent-basic-responses/endpoint/protocols/responses" \
+  -H "Authorization: Bearer $(az account get-access-token --resource https://ai.azure.com --query accessToken -o tsv)" \
   -H "Content-Type: application/json" \
-  -d '{"input": "What did I just say?"}'
+  -d '{"input": "What did I just say?", "previous_response_id": "<response_id>"}'
 ```
-
-> The session store in `main.py` is in-memory and is lost on container restart. For production, replace it with a durable store such as Azure Cosmos DB or Redis.
 
 ---
 
@@ -354,7 +352,7 @@ curl -X POST \
 
 For iterating on agent logic without a full cloud deployment:
 
-1. Create a `.env` file in `src/agent-framework-agent-basic-invocations/`:
+1. Create a `.env` file in `src/agent-framework/responses/basic/`:
    ```
    FOUNDRY_PROJECT_ENDPOINT=https://<your-project>.services.ai.azure.com/api/projects/<project>
    AZURE_AI_MODEL_DEPLOYMENT_NAME=gpt-4.1-mini
@@ -362,17 +360,17 @@ For iterating on agent logic without a full cloud deployment:
 
 2. Install dependencies:
    ```bash
-   pip install -r src/agent-framework-agent-basic-invocations/requirements.txt
+   pip install -r src/agent-framework/responses/basic/requirements.txt
    ```
 
 3. Run the agent:
    ```bash
-   python src/agent-framework-agent-basic-invocations/main.py
+   python src/agent-framework/responses/basic/main.py
    ```
 
 4. Test it:
    ```bash
-   curl -X POST http://localhost:8088/invocations \
+   curl -X POST http://localhost:8088/responses \
      -H "Content-Type: application/json" \
      -d '{"input": "Hi!"}'
    ```
